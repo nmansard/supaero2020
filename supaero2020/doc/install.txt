@@ -1,0 +1,34 @@
+The following dependencies are needed:
+
+- for using the pendulum models, you need Pinocchio and Gepetto-viewer (Python 2.7 only). To be install using APT on Ubuntu 16.04 or follow https://stack-of-tasks.github.io/pinocchio/download.html.
+
+- for using the neural networks in deeptable and qlearn, you need TensorFlow and TFLearn. To be installed through pip (both in version 2.7 for Pinocchio and 3.5 for Cozmo. Follow https://www.tensorflow.org/install/pip (although I do not recommend to use the virtualenv if you are not afraid to pollute your machine.
+
+- for using Cozmo, install the Cozmo SDK through Pip3. Follow http://cozmosdk.anki.com/docs/install-linux.html.
+
+- for using Pyomo, install Anaconda3 (woooaah it's big!), and then install pyomo, pyomo.extras and ipopt from Conda. Follow: http://www.pyomo.org/installation
+*** TAKE CARE: when Anaconda environment is active, only Python3 is available and Pinocchio does not work any more (i.e. when using this project, first achieve the questions about Pinocchio and the Q-Table, then later change your environment by editing your .bashrc and go to the Pyomo questions).
+
+All the necessary steps are gathered in the install.sh script. Just run it and you should be good.
+
+=== Installing Cozmo SDK on your phone and testing it on your PC.
+
+*** On the phone.
+1. Install cozmo
+2. Connect to Cozmo wireless
+3. Plug the phone to computer by USB
+4. Enable the USB debuging https://www.kingoapp.com/root-tutorials/how-to-enable-usb-debugging-mode-on-android.htm
+5. Activate debuging (in phone parameter, developer options, activate)
+   - activate the main switch
+   - activate "debug" mode
+6. Check USB debuging in terminal by asking adb
+   (cozmo) nmansard@koyasan:cozmo [18:22] adb devices
+   List of devices attached 
+   ZY22366T55	device
+7. In the cozmo app, go to connect, then parameters (top-right icon) >> activate SDK
+
+*** On the computer.
+1. http://cozmosdk.anki.com/docs/install-linux.html
+Everything is already set up using the command lines above.
+2. Run a test
+   python3 cozmo_example.py
