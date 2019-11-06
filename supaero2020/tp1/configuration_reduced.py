@@ -4,18 +4,15 @@ scipy BFGS.
 '''
 
 import time
-
 import numpy as np
 from scipy.optimize import fmin_bfgs
-
 import gviewserver
 
+gv = gviewserver.GepettoViewerServer()
 
 def placement(x, y, theta):
+    '''From a x,y,theta triplet returns a 7-uplet xyz-quaternion.'''
     return [y, 0, x, 0, np.sin(theta / 2), 0, np.cos(theta / 2)]
-
-
-gv = gviewserver.GepettoViewerServer()
 
 gv.addSphere('world/joint1', .1, [1, 0, 0, 1])
 gv.addSphere('world/joint2', .1, [1, 0, 0, 1])
@@ -23,8 +20,7 @@ gv.addSphere('world/joint3', .1, [1, 0, 0, 1])
 gv.addCapsule('world/arm1', .05, .75, [1, 1, 1, 1])
 gv.addCapsule('world/arm2', .05, .75, [1, 1, 1, 1])
 
-
-def display2d(q):
+def display(q):
     '''Display the robot in Gepetto Viewer. '''
     assert (q.shape == (2, 1))
     c0 = np.cos(q[0, 0])
@@ -38,7 +34,6 @@ def display2d(q):
     gv.applyConfiguration('world/joint3', placement(c0 + c1, s0 + s1, q[0, 0] + q[1, 0]))
     gv.refresh()
 
-
 def endeffector(q):
     '''Return the 2D position of the end effector of the robot at configuration q. '''
     assert (q.shape == (2, 1))
@@ -48,15 +43,12 @@ def endeffector(q):
     s1 = np.sin(q[0, 0] + q[1, 0])
     return np.matrix([c0 + c1, s0 + s1]).T
 
-
 target = np.matrix([.5, .5]).T
-
 
 def cost(q):
     q = np.matrix(q).T
     eff = endeffector(q)
-    return np.linalg.norm(eff - target)
-
+    return np.linalg.norm(eff - target)**2
 
 def callback(q):
     q = np.matrix(q).T
