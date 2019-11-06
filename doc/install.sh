@@ -2,7 +2,7 @@ sudo apt install curl aptitude git adb
 sudo sh -c "echo 'deb [arch=amd64] http://robotpkg.openrobots.org/packages/debian/pub bionic robotpkg' >> /etc/apt/sources.list.d/robotpkg.list"
 curl http://robotpkg.openrobots.org/packages/debian/robotpkg.key | sudo apt-key add -
 sudo apt-get update
-sudo apt install robotpkg-py36-pinocchio robotpkg-py36-qt4-gepetto-viewer-corba ipython3 python3-pip freeglut3 python3-matplotlib python3-pil.imagetk jupyter python3-scipy python3-matplotlib
+sudo apt install robotpkg-py36-pinocchio robotpkg-py36-qt4-gepetto-viewer-corba ipython3 python3-pip freeglut3 python3-matplotlib python3-pil.imagetk jupyter python3-scipy python3-matplotlib jupyter python3-scipy python3-numpy
 
 
 echo '
