@@ -52,7 +52,7 @@ def cost(q):
 
 def callback(q):
     q = np.matrix(q).T
-    display2d(q)
+    display(q)
     time.sleep(.5)
 
 
