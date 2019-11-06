@@ -4,6 +4,7 @@ import time
 from numpy.linalg import inv,norm
 import eigenpy; eigenpy.switchToNumpyMatrix()
 import matplotlib.pylab as plt; plt.ion()
+from scipy.optimize import fmin_slsqp
 from load_environment import createUR5WithObstacles,Target
 
 robot = createUR5WithObstacles()

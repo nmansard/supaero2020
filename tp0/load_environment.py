@@ -11,8 +11,9 @@ import eigenpy
 import itertools
 eigenpy.switchToNumpyMatrix()
 
-def createUR5WithObstacles(path = '/opt/openrobots/share/',
-                           urdf = '/opt/openrobots/share/ur_description/urdf/ur5_gripper.urdf',
+exampleRobotDataPath = '/opt/openrobots/share/example-robot-data/'
+def createUR5WithObstacles(path = exampleRobotDataPath,
+                           urdf = exampleRobotDataPath + 'ur_description/urdf/ur5_gripper.urdf',
                            initViewer = True):
 
     ### Robot
