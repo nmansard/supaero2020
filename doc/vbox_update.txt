@@ -3,7 +3,7 @@
 ###  in October 2019.
 
 # Packet robotpkg-py35-example-robot-data is needed for TP2
-sudo apt install  robotpkg-py35-example-robot-data
+sudo apt install  robotpkg-py3\*-example-robot-data
 
 # Update of robotpkg-example-robot-data:
 #   This will be automatically done when installing the previous packet.
