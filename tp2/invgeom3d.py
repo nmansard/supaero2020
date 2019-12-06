@@ -16,7 +16,7 @@ import eigenpy
 eigenpy.switchToNumpyMatrix()
 
 # --- Load robot model
-exampleRobotDataPath = '/opt/openrobots/share/example-robot-data/'
+exampleRobotDataPath = '/opt/openrobots/share/example-robot-data/robots/'
 urdf = exampleRobotDataPath + 'ur_description/urdf/ur5_gripper.urdf'
 robot = RobotWrapper.BuildFromURDF( urdf, [ exampleRobotDataPath, ] )
 robot.initViewer(loadModel=True)

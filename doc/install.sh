@@ -3,7 +3,7 @@ sudo sh -c "echo 'deb [arch=amd64] http://robotpkg.openrobots.org/packages/debia
 sudo sh -c "echo 'deb [arch=amd64] http://robotpkg.openrobots.org/wip/packages/debian/pub bionic robotpkg' >> /etc/apt/sources.list.d/robotpkg.list"
 curl http://robotpkg.openrobots.org/packages/debian/robotpkg.key | sudo apt-key add -
 sudo apt-get update
-sudo apt install robotpkg-py3\*-pinocchio robotpkg-py3\*-qt4-gepetto-viewer-corba ipython3 python3-pip freeglut3 python3-matplotlib python3-pil.imagetk jupyter python3-scipy python3-matplotlib jupyter python3-scipy python3-numpy robotpkg-example-robot-data robotpkg-osg-dae
+sudo apt install robotpkg-py3\*-pinocchio robotpkg-py3\*-qt4-gepetto-viewer-corba ipython3 python3-pip freeglut3 python3-matplotlib python3-pil.imagetk jupyter python3-scipy python3-matplotlib jupyter python3-scipy python3-numpy robotpkg-example-robot-data robotpkg-osg-dae robotpkg-py35-example-robot-data
 
 
 echo '
