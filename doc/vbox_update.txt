@@ -1,0 +1,19 @@
+###  This file gathers all the needed system updates that must be achieved since
+###  the release of the virtual-box Ubuntu 18.04 for the robotics Supaero class
+###  in October 2019.
+
+# Packet robotpkg-py35-example-robot-data is needed for TP2
+sudo apt install  robotpkg-py35-example-robot-data
+
+# Update of robotpkg-example-robot-data:
+#   This will be automatically done when installing the previous packet.
+#   It is adviced that everybody does the same update so that all OS are similar.
+#   This is optional, recommanded but not mandatory.
+sudo apt upgrade
+
+# Add a symbolic link to enable back-compatibility with previous robotpkg-example-robot-data
+#   Previously, the notebooks were searching for the urdf robot-model files in a directory.
+#   The path has been changed by the previous apt upgrade
+#   It is recommanded to add a symbolic link to keep the previous path acceptable.
+sudo ln -snf /opt/openrobots/share/example-robot-data/robots/ /opt/openrobots/share/example-robot-data/
+
