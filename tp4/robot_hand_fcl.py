@@ -7,59 +7,16 @@ from numpy import pi
 from numpy import cos,sin,pi,hstack,vstack,argmin
 from numpy.linalg import norm,pinv
 import hppfcl
-
 from gviewserver import GepettoViewerServer
 
-class Visual:
-    '''
-    Class representing one 3D mesh of the robot, to be attached to a joint. The class contains:
-    * the name of the 3D objects inside Gepetto viewer.
-    * the ID of the joint in the kinematic tree to which the body is attached.
-    * the placement of the body with respect to the joint frame.
-    This class is only used in the list Robot.visuals (see below).
-
-    The visual are supposed mostly to be capsules. In that case, the object also contains
-    radius and length of the capsule.
-    The collision checking computes collision test, distance, and witness points.
-    Using the supporting robot, the collision Jacobian returns a 1xN matrix corresponding
-    to the normal direction.
-    '''
-    def __init__(self,name,jointParent,placement,radius=.1,length=None):
-        '''Length and radius are used in case of capsule objects'''
-        self.name = name                  # Name in gepetto viewer
-        self.jointParent = jointParent    # ID (int) of the joint 
-        self.placement = placement        # placement of the body wrt joint, i.e. bodyMjoint
-        if length is not None:
-            self.length = length
-            self.radius = radius
-
-    def place(self,gview,oMjoint,refresh=True):
-        oMbody = oMjoint*self.placement
-        #gview.place(self.name,oMbody,False)
-        gview.applyConfiguration(self.name,
-                                   se3ToXYZQUAT(oMbody))
-        if refresh: gview.refresh()
-
-    def isCapsule(self):
-        return 'length' in self.__dict__ and 'radius' in self.__dict__
-
-
 def Capsule(name,joint,placement,radius,length):
+    '''Create a Pinocchio::FCL::Capsule to be added in the Geom-Model. '''
     caps = pio.GeometryObject.CreateCapsule(radius,length)
     caps.name = name
     caps.placement = placement
     caps.parentJoint = joint
     return caps
 
-
-class FakeViewer:
-    def addCapsule(self,*args):        pass
-    def addSphere(self,*args):        pass
-    def addCylinder(self,*args):        pass
-    def setVisibility(self,*args):        pass
-    def applyConfiguration(self,*args):        pass
-    def refresh(self,*args):        pass
-        
 class Robot:
     '''
     Define a class Robot with 7DOF (shoulder=3 + elbow=1 + wrist=3). 
@@ -78,7 +35,6 @@ class Robot:
 
     def __init__(self):
         self.viewer = GepettoViewerServer()
-        if self.viewer is None: self.viewer = FakeViewer()
         #self.visuals = []
         self.model = pio.Model()
         self.gmodel = pio.GeometryModel()
@@ -95,16 +51,7 @@ class Robot:
         self.v0 = zero(self.model.nv)
         self.collisionPairs = []
 
-
     def addCollisionPairs(self):
-        # self.gmodel.addAllCollisionPairs()
-        # pairs = self.gmodel.collisionPairs
-        # parents = self.model.parents
-        # gobjs = self.gmodel.geometryObjects
-        # wp = [ p for p in pairs \
-        #        if parents[gobjs[p.first ].parentJoint] == gobjs[p.second].parentJoint \
-        #        or parents[gobjs[p.second].parentJoint] == gobjs[p.first ].parentJoint ]
-        # for p in reversed(wp): self.gmodel.removeCollisionPair(p)     
         for n in [ 'world/finger11', 'world/finger12', 'world/finger13' ]:
             self.gmodel.addCollisionPair(pio.CollisionPair(self.gmodel.getGeometryId(n),
                                                           self.gmodel.getGeometryId('world/wpalmr')))
@@ -122,10 +69,12 @@ class Robot:
         #                                                self.gmodel.getGeometryId('world/finger13')))
         
         
-    def addCapsule(self,name,joint,placement,r,l):
-        self.gmodel.addGeometryObject(Capsule(name,joint,placement,r*0.99,l))
+    def addCapsule(self,name,joint,placement,radius,length,color=[1,1,0.78,1]):
+        self.gmodel.addGeometryObject(Capsule(name,joint,placement,radius*0.99,length))
+        if self.viewer is not None: self.viewer.addCapsule(name, radius, length, color)
 
-    def createHand(self,rootId=0,prefix='',jointPlacement=None):
+        
+    def createHand(self,rootId=0,jointPlacement=None):
         color   = [red,green,blue,transparency] = [1,1,0.78,1.0]
         colorred = [1.0,0.0,0.0,1.0]
 
@@ -135,243 +84,142 @@ class Robot:
         trans = lambda x,y,z: pio.SE3(eye(3),np.matrix([x,y,z]).T)
         inertia = lambda m,c: pio.Inertia(m,np.matrix(c,np.double).T,eye(3)*m**2)
 
-        name               = prefix+"wrist"
+        name               = "wrist"
         jointName,bodyName = [name+"_joint",name+"_body"]
         #jointPlacement     = jointPlacement if jointPlacement!=None else pio.SE3.Identity()
         jointPlacement     = jointPlacement if jointPlacement!=None else pio.SE3(pio.utils.rotate('y',np.pi),zero(3))
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(3,[0,0,0]),pio.SE3.Identity())
-        
-        L=3*cm;W=5*cm;H=1*cm
-        #self.viewer.addSphere('world/'+prefix+'wrist', .02, color)
-        self.viewer.addCapsule('world/'+prefix+'wrist', .02, 0, color)
-        #self.visuals.append( Visual('world/'+prefix+'wpalmt',jointId,
-        #                            pio.SE3(rotate('x',pi/2),np.matrix([0,0,0]).T),.02,0 ))
-        self.addCapsule('world/'+prefix+'wrist',jointId,
+
+        ## Hand dimsensions: length, width, height(=depth), finger-length
+        L=3*cm;W=5*cm;H=1*cm; FL = 4*cm
+        self.addCapsule('world/wrist',jointId,
                         pio.SE3(rotate('x',pi/2),np.matrix([0,0,0]).T),.02,0 )
   
-        # self.viewer.addBox('world/'+prefix+'wpalm', L/2, W/2, H,color)
-        # self.visuals.append( Visual('world/'+prefix+'wpalm',jointId,trans(L/2,0,0) ))
-        capsr = H; capsl = W        
-        # for IPOS,POS in enumerate(np.arange(0,L+1e-3,L/10)):
-        #     name = 'world/'+prefix+'wpalmb%02d'%IPOS
-        #     self.viewer.addCapsule(name, capsr, capsl, color)
-        #     #self.visuals.append( Visual(name,jointId,
-        #     #pio.SE3(rotate('x',pi/2),np.matrix([POS,0,0]).T),
-        #     #                            capsr,capsl ))
-        #     self.addCapsule(name,jointId,
-        #                     pio.SE3(rotate('x',pi/2),np.matrix([POS,0,0]).T),capsr,capsl )
- 
-        capsr = H; capsl = L
-        self.viewer.addCapsule('world/'+prefix+'wpalml', H, L, color)
-        #self.visuals.append( Visual('world/'+prefix+'wpalml',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([L/2,-W/2,0]).T),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'wpalml',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([L/2,-W/2,0]).T),capsr,capsl )
- 
-        capsr = H; capsl = L
-        self.viewer.addCapsule('world/'+prefix+'wpalmr', H, L, color)
-        #self.visuals.append( Visual('world/'+prefix+'wpalmr',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([L/2,W/2,0]).T),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'wpalmr',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([L/2,W/2,0]).T),capsr,capsl )
-
-        capsr = H; capsl = W
-        self.viewer.addCapsule('world/'+prefix+'wpalmfr', capsr, capsl, color)
-        self.addCapsule('world/'+prefix+'wpalmfr',jointId,
-                                    pio.SE3(rotate('x',pi/2),np.matrix([L,0,0]).T),capsr,capsl )
+        self.addCapsule('world/wpalml',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([L/2,-W/2,0]).T),H,L )
+        self.addCapsule('world/wpalmr',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([L/2,W/2,0]).T),H,L)
+        self.addCapsule('world/wpalmfr',jointId,
+                                    pio.SE3(rotate('x',pi/2),np.matrix([L,0,0]).T),H,W)
         
-
-        name               = prefix+"palm"
+        name               = "palm"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([5*cm,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(2,[0,0,0]),pio.SE3.Identity())
-        capsr = 1*cm; capsl = W
-        self.viewer.addCapsule('world/'+prefix+'palm2', 1*cm, W, color)
-        #self.visuals.append( Visual('world/'+prefix+'palm2',jointId,
-        #                            pio.SE3(rotate('x',pi/2),zero(3)),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'palm2',jointId,
-                                    pio.SE3(rotate('x',pi/2),zero(3)),capsr,capsl )
- 
-
-        FL = 4*cm
+        self.addCapsule('world/palm2',jointId,
+                        pio.SE3(rotate('x',pi/2),zero(3)),1*cm,W )
         palmIdx = jointId
 
-        name               = prefix+"finger11"
+        name               = "finger11"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([2*cm,W/2,0]).T)
         jointId = self.model.addJoint(palmIdx,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger11', capsr,capsl, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger11',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'finger11',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
-        print('Dimension capsule finger11 %.3f, %.3f',(capsr,capsl))
+        self.addCapsule('world/finger11',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H )
 
-
-        name               = prefix+"finger12"
+        name               = "finger12"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger12', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger12',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'finger12',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
+        self.addCapsule('world/finger12',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H )
 
 
-        name               = prefix+"finger13"
+        name               = "finger13"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL-2*H,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.3,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = 0.;
-        self.viewer.addSphere('world/'+prefix+'finger13', capsr, color)
-        ##self.visuals.append( Visual('world/'+prefix+'finger13',jointId,
-        #                           trans(2*H,0,0),capsr,capsl )
-#)
-        self.addCapsule('world/'+prefix+'finger13',jointId,
-                                    trans(2*H,0,0),capsr,capsl )
+        self.addCapsule('world/finger13',jointId,
+                                    trans(2*H,0,0),H,0 )
 
-
-        name               = prefix+"finger21"
+        name               = "finger21"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([2*cm,0,0]).T)
         jointId = self.model.addJoint(palmIdx,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger21', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger21',jointId,
-        #pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
-        #)
-        self.addCapsule('world/'+prefix+'finger21',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
+        self.addCapsule('world/finger21',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H )
 
-
-        name               = prefix+"finger22"
+        name               = "finger22"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger22', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger22',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
-        #)
-        self.addCapsule('world/'+prefix+'finger22',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
+        self.addCapsule('world/finger22',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H )
 
-
-        name               = prefix+"finger23"
+        name               = "finger23"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL-H,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.3,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = 0.;
-        self.viewer.addSphere('world/'+prefix+'finger23', H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger23',jointId,
-        #                            trans(H,0,0),capsr,capsl )
-        #)
-        self.addCapsule('world/'+prefix+'finger23',jointId,
-                                    trans(H,0,0),capsr,capsl )
+        self.addCapsule('world/finger23',jointId,
+                                    trans(H,0,0),H,0 )
 
-
-
-        name               = prefix+"finger31"
+        name               = "finger31"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([2*cm,-W/2,0]).T)
         jointId = self.model.addJoint(palmIdx,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger31', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger31',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl ))
-        self.addCapsule('world/'+prefix+'finger31',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
+        self.addCapsule('world/finger31',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H)
 
-
-        name               = prefix+"finger32"
+        name               = "finger32"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger32', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger32',jointId,
-        #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl ))
-        self.addCapsule('world/'+prefix+'finger32',jointId,
-                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
+        self.addCapsule('world/finger32',jointId,
+                                    pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),H,FL-2*H)
 
-
-        name               = prefix+"finger33"
+        name               = "finger33"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([FL-2*H,0,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.3,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = 0.
-        self.viewer.addSphere('world/'+prefix+'finger33', H, color)
-        #self.visuals.append( Visual('world/'+prefix+'finger33',jointId,
-        #                            trans(2*H,0,0),capsr,capsl ))
-        self.addCapsule('world/'+prefix+'finger33',jointId,
-                                    trans(2*H,0,0),capsr,capsl )
+        self.addCapsule('world/finger33',jointId,
+                                    trans(2*H,0,0),H,0)
 
-
-        name               = prefix+"thumb1"
+        name               = "thumb1"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(eye(3), np.matrix([1*cm,-W/2-H*1.5,0]).T)
         jointId = self.model.addJoint(1,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = 2*cm
-        self.viewer.addCapsule('world/'+prefix+'thumb1', H, 2*cm, color)
-        #self.visuals.append( Visual('world/'+prefix+'thumb1',jointId,
-        #                            pio.SE3(rotate('z',pi/3)*rotate('x',pi/2),np.matrix([1*cm,-1*cm,0]).T),
-        #capsr,capsl ))
-        self.addCapsule('world/'+prefix+'thumb1',jointId,
+        self.addCapsule('world/thumb1',jointId,
                         pio.SE3(rotate('z',pi/3)*rotate('x',pi/2),np.matrix([1*cm,-1*cm,0]).T),
-                        capsr,capsl )
+                        H,2*cm)
         
-        name               = prefix+"thumb2"
+        name               = "thumb2"
         jointName,bodyName = [name+"_joint",name+"_body"]
         jointPlacement     = pio.SE3(rotate('z',pi/3)*rotate('x',pi), np.matrix([3*cm,-1.8*cm,0]).T)
         jointId = self.model.addJoint(jointId,pio.JointModelRZ(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.4,[0,0,0]),pio.SE3.Identity())
-        capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'thumb2', H, FL-2*H, color)
-        #self.visuals.append( Visual('world/'+prefix+'thumb2',jointId,
-        #                            pio.SE3(rotate('x',pi/3),np.matrix([-0.7*cm,.8*cm,-0.5*cm]).T),
-        #capsr,capsl ))
-        self.addCapsule('world/'+prefix+'thumb2',jointId,
+        self.addCapsule('world/thumb2',jointId,
                         pio.SE3(rotate('x',pi/3),np.matrix([-0.7*cm,.8*cm,-0.5*cm]).T),
-                        capsr,capsl )
+                        H,FL-2*H)
 
         # Prepare some patches to represent collision points. Yet unvisible.
-        for i in range(10):
-            self.viewer.addCylinder('world/cpatch%d'%i, .01, .003, [ 1.0,0,0,1])
-            self.viewer.setVisibility('world/cpatch%d'%i,'OFF')
+        if self.viewer is not None:
+            for i in range(10):
+                self.viewer.addCylinder('world/cpatch%d'%i, .01, .003, [ 1.0,0,0,1])
+                self.viewer.setVisibility('world/cpatch%d'%i,'OFF')
     
     def displayContact(self,contact,name='world/cpatch0',refresh=False):
+        if self.viewer is None: return
         self.viewer.setVisibility(name,'ON')
         M = pio.SE3(pio.Quaternion.FromTwoVectors(np.matrix([0,0,1]).T,contact.normal).matrix(),contact.pos)
         self.viewer.applyConfiguration(name,pio.se3ToXYZQUATtuple(M))
         if refresh: self.viewer.refresh()   
-
-  
         
     def display(self,q):
         pio.forwardKinematics(self.model,self.data,q)
         pio.updateGeometryPlacements(self.model,self.data,self.gmodel,self.gdata)
+        if self.viewer is None: return
         for i,g in enumerate(self.gmodel.geometryObjects):
             self.viewer.applyConfiguration(g.name, pio.se3ToXYZQUATtuple(self.gdata.oMg[i]))
         self.viewer.refresh()
-
-
