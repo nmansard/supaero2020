@@ -6,6 +6,7 @@ import gepetto.corbaserver
 from numpy import pi
 from numpy import cos,sin,pi,hstack,vstack,argmin
 from numpy.linalg import norm,pinv
+import hppfcl
 
 from gviewserver import GepettoViewerServer
 
@@ -87,11 +88,13 @@ class Robot:
 
         self.data = self.model.createData()
         self.gdata = pio.GeometryData(self.gmodel)
+        self.gdata.collisionRequest.enable_contact=True
         
         self.q0 = zero(self.model.nq)
         #self.q0[3] = 1.0
         self.v0 = zero(self.model.nv)
         self.collisionPairs = []
+
 
     def addCollisionPairs(self):
         # self.gmodel.addAllCollisionPairs()
@@ -174,7 +177,11 @@ class Robot:
 #)
         self.addCapsule('world/'+prefix+'wpalmr',jointId,
                                     pio.SE3(rotate('y',pi/2),np.matrix([L/2,W/2,0]).T),capsr,capsl )
-        print('Dimension capsule wpalmr %.3f, %.3f',(capsr,capsl))
+
+        capsr = H; capsl = W
+        self.viewer.addCapsule('world/'+prefix+'wpalmfr', capsr, capsl, color)
+        self.addCapsule('world/'+prefix+'wpalmfr',jointId,
+                                    pio.SE3(rotate('x',pi/2),np.matrix([L,0,0]).T),capsr,capsl )
         
 
         name               = prefix+"palm"
@@ -200,7 +207,7 @@ class Robot:
         jointId = self.model.addJoint(palmIdx,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(.5,[0,0,0]),pio.SE3.Identity())
         capsr = H; capsl = FL-2*H
-        self.viewer.addCapsule('world/'+prefix+'finger11', H, FL-2*H, color)
+        self.viewer.addCapsule('world/'+prefix+'finger11', capsr,capsl, color)
         #self.visuals.append( Visual('world/'+prefix+'finger11',jointId,
         #                            pio.SE3(rotate('y',pi/2),np.matrix([FL/2-H,0,0]).T),capsr,capsl )
 #)
@@ -349,10 +356,14 @@ class Robot:
 
         # Prepare some patches to represent collision points. Yet unvisible.
         for i in range(10):
-            self.viewer.addCylinder('world/wa'+str(i), .01, .003, [ 1.0,0,0,1])
-            self.viewer.addCylinder('world/wb'+str(i), .01, .003, [ 1.0,0,0,1])
-            self.viewer.setVisibility('world/wa'+str(i),'OFF')
-            self.viewer.setVisibility('world/wb'+str(i),'OFF')
+            self.viewer.addCylinder('world/cpatch%d'%i, .01, .003, [ 1.0,0,0,1])
+            self.viewer.setVisibility('world/cpatch%d'%i,'OFF')
+    
+    def displayContact(self,contact,name='world/cpatch0',refresh=False):
+        self.viewer.setVisibility(name,'ON')
+        M = pio.SE3(pio.Quaternion.FromTwoVectors(np.matrix([0,0,1]).T,contact.normal).matrix(),contact.pos)
+        self.viewer.applyConfiguration(name,pio.se3ToXYZQUATtuple(M))
+        if refresh: self.viewer.refresh()   
 
   
         
