@@ -47,7 +47,9 @@ class RobotHand:
         self.gdata.collisionRequest.enable_contact=True
         
         self.q0 = zero(self.model.nq)
-        #self.q0[3] = 1.0
+        self.q0[0] = np.pi
+        self.q0[-2] = -np.pi/3
+        self.q0[2:-4] = -np.pi/6
         self.v0 = zero(self.model.nv)
         self.collisionPairs = []
 
@@ -290,7 +292,17 @@ class RobotHand:
                 self.viewer.addCylinder('world/cpatch%d'%i, .01, .003, [ 1.0,0,0,1])
                 self.viewer.setVisibility('world/cpatch%d'%i,'OFF')
     
-    def displayContact(self,contact,name='world/cpatch0',refresh=False):
+    def displayContact(self,contact,contactRef=0,refresh=False):
+        '''
+        Display a small red disk at the position of the contact, perpendicular to the
+        contact normal. 
+        
+        @param contact: the contact object, taken from Pinocchio (HPP-FCL) e.g.
+        geomModel.collisionResults[0].geContact(0).
+        @param contactRef: use patch named "world/cparch%d" % contactRef, 0 by default.
+        @param refresh: option to refresh the viewer before returning, False by default.
+        '''
+        name='world/cpatch%d'%contactRef
         if self.viewer is None: return
         self.viewer.setVisibility(name,'ON')
         M = pio.SE3(pio.Quaternion.FromTwoVectors(np.matrix([0,0,1]).T,contact.normal).matrix(),contact.pos)
