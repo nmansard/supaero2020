@@ -101,41 +101,42 @@ class RobotHand:
         #         self.gmodel.addCollisionPair(pio.CollisionPair(self.gmodel.getGeometryId(nt),
         #                                                        self.gmodel.getGeometryId(nph)))
         
-        pairs = [ ['finger11','wpalmr'],
-                  ['finger12','wpalmr'],
-                  ['finger13','wpalmr'],
-                  ['finger21','wrist'],
-                  ['finger22','wrist'],
-                  ['finger23','wrist'],
-                  ['finger31','wpalml'],
-                  ['finger32','wpalml'],
-                  ['finger33','wpalml'],
-                  ['finger12','palm2'],
-                  ['finger12','wpalmfr'],
-                  ['finger13','palm2'],
-                  ['finger13','wpalmfr'],
-                  ['finger22','palm2'],
-                  ['finger22','wpalmfr'],
-                  ['finger23','palm2'],
-                  ['finger23','wpalmfr'],
-                  ['finger32','palm2'],
-                  ['finger32','wpalmfr'],
-                  ['finger33','palm2'],
-                  ['finger33','wpalmfr'],
-                  ['finger11','finger13'],
-                  ['finger21','finger23'],
-                  ['finger31','finger33'],
-                  ['wpalml','thumb2'],
-                  ['wpalmfr','thumb1'],
-                  ['palm2','thumb1'],
-                  ['thumb1','finger31'],
-                  ['thumb1','finger31'],
-                  ['thumb1','finger33'],
-                  ['wpalmfr','thumb2'],
-                  ['palm2','thumb2'],
-                  ['thumb2','finger31'],
-                  ['thumb2','finger32'],
-                  ['thumb2','finger33'],
+        pairs = [
+            ['finger11','wpalmr'],
+            ['finger12','wpalmr'],
+            ['finger13','wpalmr'],
+            ['finger21','wrist'],
+            ['finger22','wrist'],
+            ['finger23','wrist'],
+            ['finger31','wpalml'],
+            ['finger32','wpalml'],
+            ['finger33','wpalml'],
+            ['finger12','palm2'],
+            ['finger12','wpalmfr'],
+            ['finger13','palm2'],
+            ['finger13','wpalmfr'],
+            ['finger22','palm2'],
+            ['finger22','wpalmfr'],
+            ['finger23','palm2'],
+            ['finger23','wpalmfr'],
+            ['finger32','palm2'],
+            ['finger32','wpalmfr'],
+            ['finger33','palm2'],
+            ['finger33','wpalmfr'],
+            ['finger11','finger13'],
+            ['finger21','finger23'],
+            ['finger31','finger33'],
+            ['wpalml','thumb2'],
+            ['wpalmfr','thumb1'],
+            ['palm2','thumb1'],
+            ['thumb1','finger31'],
+            ['thumb1','finger31'],
+            ['thumb1','finger33'],
+            ['wpalmfr','thumb2'],
+            ['palm2','thumb2'],
+            ['thumb2','finger31'],
+            ['thumb2','finger32'],
+            ['thumb2','finger33'],
         ]
         for (n1,n2) in pairs:
             self.gmodel.addCollisionPair(pio.CollisionPair(self.gmodel.getGeometryId('world/'+n1),
@@ -183,6 +184,7 @@ class RobotHand:
         jointId = self.model.addJoint(jointId,pio.JointModelRY(),jointPlacement,jointName)
         self.model.appendBodyToJoint(jointId,inertia(2,[0,0,0]),pio.SE3.Identity())
         self.addCapsule('world/palm2',jointId,
+        #                pio.SE3(rotate('y',pi/2),zero(3)),1*cm,W )
                         pio.SE3(rotate('x',pi/2),zero(3)),1*cm,W )
         palmIdx = jointId
 
@@ -288,10 +290,16 @@ class RobotHand:
 
         # Prepare some patches to represent collision points. Yet unvisible.
         if self.viewer is not None:
-            for i in range(10):
+            self.maxContact = 10
+            for i in range(self.maxContact):
                 self.viewer.addCylinder('world/cpatch%d'%i, .01, .003, [ 1.0,0,0,1])
                 self.viewer.setVisibility('world/cpatch%d'%i,'OFF')
     
+    def hideContact(self,fromContactRef=0):
+        if fromContactRef<0: fromContactRef=self.maxContact+fromContactRef
+        for i in range(fromContactRef,self.maxContact):
+            name='world/cpatch%d'%i
+            self.viewer.setVisibility(name,'OFF')
     def displayContact(self,contact,contactRef=0,refresh=False):
         '''
         Display a small red disk at the position of the contact, perpendicular to the

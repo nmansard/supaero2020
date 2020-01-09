@@ -16,26 +16,18 @@ m2a = lambda m: np.array(m.flat)
 robot = RobotHand()
 gv = robot.viewer
 
-colwrap = CollisionWrapper(robot,gv)
+colwrap = CollisionWrapper(robot)
 rmodel,rdata = colwrap.rmodel,colwrap.rdata
 
 Kp = 50.
 Kv = 2 * np.sqrt(Kp)
-
-q = np.matrix([ 3.17241553,  0.12073722,  0.59328528,  0.87136311,  0.66834531,
-                -1.64030291, -1.92294792, -1.71647696, -0.39812831, -0.28055413,
-                0.36374184,  0.48181465, -0.44956684,  0.70342902]).T
-vq = rand(robot.model.nv)
-robot.display(q)
-
 dt = 1e-3
+
+q = robot.q0.copy()
+vq = zero(robot.model.nv)
 
 qdes = np.matrix([ 3.17,  0.12,  0.59,  0.87,  0.67, -2.1 , -1.8 , -1.8 , -0.4 , -0.28,  0.36,  0.48, -0.45,  0.7 ]).T
 vqdes = 0*vq
-vq *= 0
-q[7]+=2
-
-robot.model.gravity*=0
 
 hq = []
 hv = []
@@ -46,57 +38,47 @@ previously = []
 for it in range(10000):
     t=it*dt
 
-    M = pio.crba(robot.model, robot.data, q)
-    b = pio.rnea(robot.model, robot.data, q, vq, zero(robot.model.nv))
-    pio.computeAllTerms(rmodel,rdata,q,vq)
-    
     tauq = -Kp*(q-qdes) - Kv*(vq-vqdes)
-    #tauq = zero(robot.model.nv)
-    
+
+    pio.computeAllTerms(rmodel,rdata,q,vq)
+    M = rdata.M
+    b = rdata.nle
     afree = inv(M)*(tauq-b)
 
     colwrap.computeCollisions(q)
-    contacts = colwrap.getCollisionList()
+    collisions = colwrap.getCollisionList()
       
-    if len(contacts)>0:
-        J = colwrap.getCollisionJacobian(contacts)
-        dist = colwrap.getCollisionDistances(contacts)
+    if len(collisions)>0:
+        J = colwrap.getCollisionJacobian(collisions)
+        dist = colwrap.getCollisionDistances(collisions)
         
-        for i,_,_ in contacts:
+        for i,_,_ in collisions:
             if i not in previously:
                 print('impact',it)
                 vq -= pinv(J)*J*vq
-                vq *=0
-        vq -= pinv(J)*J*vq
 
-        a0 = colwrap.getCollisionJdotQdot(contacts)
-            
-        d = 0*-a0 #- 1000*dist - 1000*J*vq
-        d = -1e3*J*vq
-
+        a0 = colwrap.getCollisionJdotQdot(collisions)
+        d = -a0 - 1000*dist - 1000*J*vq
+        
         hd.append(dist)
         hvd.append((J*vq).A[:,0])
         
-        if it>=218: break
-
         '''
         min || a-afree ||_M^2/2 = (a-afree)M(a-afree)/2 = aMa/2 - afreeMa + afree**2
         s.t J a >= 0
         '''
-        #aq,_,_,_,forces,ncontacts = quadprog.solve_qp(M,m2a(M*afree),-J.T,np.zeros(len(contacts)))
-        aq,_,_,_,forces,ncontacts = quadprog.solve_qp(M,m2a(M*afree),-J.T,-m2a(d),meq=1)
+        aq,_,_,_,forces,ncontacts = quadprog.solve_qp(M,m2a(M*afree),J.T,m2a(d))
         aq = a2m(aq)
     else:
         aq = afree
 
-    previously = [ i for (i,c,r) in contacts ]
-
+    previously = [ i for (i,c,r) in collisions ]
 
     vq += aq * dt
     q = pio.integrate(robot.model, q, vq * dt)
 
     if not it % 20:  # Only display once in a while ...
-        colwrap.displayCollisions(contacts)
+        colwrap.displayCollisions(collisions)
         robot.display(q)
         time.sleep(1e-1)
 

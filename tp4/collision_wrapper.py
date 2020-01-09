@@ -3,9 +3,9 @@ import numpy as np
 from pinocchio.utils import rand,zero,rotate
 
 class CollisionWrapper:
-    def __init__(self,robot,viewer=None):
+    def __init__(self,robot):
         self.robot=robot
-        self.viewer=viewer
+        self.viewer=robot.viewer
 
         self.rmodel = robot.model
         self.rdata  = self.rmodel.createData()
@@ -83,13 +83,16 @@ class CollisionWrapper:
         
     def getCollisionJacobian(self,collisions):
         '''From a collision list, return the Jacobian corresponding to the normal direction.  '''
+        if len(collisions)==0: return np.ndarray([0,self.rmodel.nv])
         J = np.vstack([ self._getCollisionJacobian(c,r) for (i,c,r) in collisions ])
         return J
 
     def getCollisionJdotQdot(self,collisions):
+        if len(collisions)==0: return np.matrix([]).T
         a0 = np.vstack([ self._getCollisionJdotQdot(c,r) for (i,c,r) in collisions ])
         return a0
 
     def getCollisionDistances(self,collisions):
+        if len(collisions)==0: return np.matrix([]).T
         dist = np.matrix([ self.gdata.distanceResults[i].min_distance for (i,c,r) in collisions ]).T
         return dist
