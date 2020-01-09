@@ -14,9 +14,12 @@ class CollisionWrapper:
         self.gdata.collisionRequest.enable_contact = True
 
 
-    def computeCollisions(self,q):
+    def computeCollisions(self,q,vq=None):
         res = pio.computeCollisions(self.rmodel,self.rdata,self.gmodel,self.gdata,q,False)
         pio.computeDistances(self.rmodel,self.rdata,self.gmodel,self.gdata,q)
+        pio.computeJointJacobians(self.rmodel,self.rdata,q)
+        if not(vq is None):
+            pio.forwardKinematics(self.rmodel,self.rdata,q,vq,0*vq)
         return res
 
     def getCollisionList(self):
@@ -33,7 +36,7 @@ class CollisionWrapper:
 
         for ic,[i,c,r] in enumerate(collisions):
             self.robot.displayContact(r.getContact(0),ic)
-        self.robot.hideContact(-ic) # Hide all other contacts from ic to robot.maxContact
+        self.robot.hideContact(len(collisions)) # Hide all other contacts from ic to robot.maxContact
         if refresh: self.viewer.refresh()
 
     def _getCollisionJacobian(self,col,res):
@@ -78,16 +81,15 @@ class CollisionWrapper:
         a = (cMj1*a1-cMj2*a2).linear[2]
         return a
         
-    def computeCollisionJacobian(self,collisions,q):
+    def getCollisionJacobian(self,collisions):
         '''From a collision list, return the Jacobian corresponding to the normal direction.  '''
-        pio.computeJointJacobians(self.rmodel,self.rdata,q)
         J = np.vstack([ self._getCollisionJacobian(c,r) for (i,c,r) in collisions ])
         return J
 
-    def computeCollisionJdotQdot(self,collisions,q,vq):
-        if not(q is None and vq is None):
-            pio.forwardKinematics(self.rmodel,self.rdata,q,vq,0*vq)
+    def getCollisionJdotQdot(self,collisions):
         a0 = np.vstack([ self._getCollisionJdotQdot(c,r) for (i,c,r) in collisions ])
         return a0
 
-        
+    def getCollisionDistances(self,collisions):
+        dist = np.matrix([ self.gdata.distanceResults[i].min_distance for (i,c,r) in collisions ]).T
+        return dist
