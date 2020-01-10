@@ -52,13 +52,8 @@ for it in range(10000):
         J = colwrap.getCollisionJacobian(collisions)
         dist = colwrap.getCollisionDistances(collisions)
         
-        for i,_,_ in collisions:
-            if i not in previously:
-                print('impact',it)
-                vq -= pinv(J)*J*vq
-
         a0 = colwrap.getCollisionJdotQdot(collisions)
-        d = -a0 - 1000*dist - 1000*J*vq
+        d = zero(len(collisions))
         
         hd.append(dist)
         hvd.append((J*vq).A[:,0])
