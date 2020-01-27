@@ -35,7 +35,7 @@ class EnvPendulum(EnvPinocchio):
         self.v0         = np.zeros(self.robot_wrapper.nv)
         self.x0         = np.concatenate([self.q0,self.v0])
 
-        EnvPinocchio.__init__(self,self.robot_wrapper.model,self.robot_wrapper,taumax=2.0)
+        EnvPinocchio.__init__(self,self.robot_wrapper.model,self.robot_wrapper,taumax=2.5)
         self.DT = 5e-2
         self.NDT = 5
         self.Kf = 1.0
@@ -66,15 +66,21 @@ class EnvPendulum(EnvPinocchio):
 class EnvPendulumDiscrete(env_abstract.EnvDiscretized):
     def __init__(self,nbJoint=1,withGepettoViewer=True):
         env = EnvPendulum(nbJoint,withGepettoViewer)
-        env.DT=1e-1
+        env.DT=5e-1
+        env.NDT=5
         env.Kf=0.1
-        env_abstract.EnvDiscretized.__init__(self,env,31,11)
+        env_abstract.EnvDiscretized.__init__(self,env,np.array([21,19]),9)
         self.discretize_x.modulo = np.pi*2
         self.discretize_x.moduloIdx = range(env.nq)
-        self.discretize_x.vmax[:env.nq] = 2*np.pi
-        self.discretize_x.vmin[:env.nq] = 0.
+        self.discretize_x.vmax[:env.nq] = np.pi
+        self.discretize_x.vmin[:env.nq] = -np.pi
         self.reset()
-
+        self.conti.cost = lambda x,u: int(np.all(x<1e-2))
+    def step(self,u):
+        x,c=env_abstract.EnvDiscretized.step(self,u)
+        c = int(np.all(np.abs(self.conti.x)<1e-3))
+        return x,c
+        
 class EnvPendulumSinCos(env_abstract.EnvPartiallyObservable):
     def __init__(self,nbJoint=1,withGepettoViewer=True):
         env = EnvPendulum(nbJoint,withGepettoViewer)
@@ -103,14 +109,14 @@ class EnvPendulumHybrid(env_abstract.EnvDiscretized):
 if __name__ == "__main__":
     env = EnvPendulum(1)
     env.reset()
-    for i in range(0):
+    for i in range(10):
         env.step(np.zeros(env.nu))
         env.render()      
 
     env = EnvPendulumDiscrete(1)
     u0 = env.encode_u(np.zeros(1)-1.9)
-    env.reset(0)
-    for i in range(0):
+    env.reset(10)
+    for i in range(10):
         env.step(u0)
         env.render()
 

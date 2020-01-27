@@ -36,11 +36,11 @@ class EnvAbstract:
         
     def step(self,u):
         '''
-        This methods calls self.cost,self.x = self.costAndDyn(self.x,u).
+        This methods calls self.x,self.cost = self.dynAndCost(self.x,u).
         Modifies the internal state self.x.
         '''
-        cost,self.x = self.costAndDyn(self.x,u)
-        return cost,self.x
+        self.x,cost = self.dynAndCost(self.x,u)
+        return self.x,-cost
     
     # Internal methods corresponding to reset (randomState), step (cost and dyn) and
     # render (display). They are all to be used with continuous state and control, and are
@@ -52,7 +52,7 @@ class EnvAbstract:
         '''
         assert(False and "This method should be implemented by inheritance.")
 
-    def costAndDyn(self,x,u):
+    def dynAndCost(self,x,u):
         '''
         Considering a control u applied at current state x, the method returns
         (xnext,cost), where xnext is the next state xnext = f(x,u), and cost
@@ -131,21 +131,24 @@ class EnvPinocchio(EnvContinuousAbstract):
         cost += self.costWeights['wx']*np.sum((x-self.xdes)**2)
         cost += self.costWeights['wu']*np.sum(u**2)
         return cost
-    def costAndDyn(self,x,u):
+    def dynAndCost(self,x,u,verbose=False):
         x=x.copy()
         q,v = x[:self.nq],x[-self.nv:]
+        u = np.clip(u,-self.umax,self.umax)
         cost = 0.
         dt = self.DT/self.NDT
         for t in range(self.NDT):
-            tau = u-self.Kf*v if self.Kf>0.0 else u
+            # Add friction
+            if self.Kf>0.0: tau = u - self.Kf*v
             # Evaluate cost
             cost  += self.cost(x,u)/self.NDT
             # Evaluate dynamics
             a = pio.aba(self.rmodel,self.rdata,q,v,tau)
+            if verbose: print(q,v,tau,a)
             v += a*dt
             q = pio.integrate(self.rmodel,q,v*dt)
         xnext = np.concatenate([q,v])
-        return cost,xnext
+        return xnext,cost
 
 # ----------------------------------------------------------------------------------------
 # --- PARTIALLY OBSERVABLE ---------------------------------------------------------------
@@ -173,10 +176,10 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
 
     def randomState(self):
         return self.obs(self.full.randomState)
-    def costAndDyn(self,x,u):
+    def dynAndCost(self,x,u):
         assert(self.obsinv is not None)
-        c,x = self.full.costAndDyn(self.obsinv(x),u)
-        return x,self.obs(x)
+        x,c = self.full.dynAndCost(self.obsinv(x),u)
+        return self.obs(x),c
     def display(self,x):
         assert(self.obsinv is not None)
         self.full.display(self.obsinv(x))
@@ -185,8 +188,8 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
         assert(x is not None or self.obsinv is not None)
         return self.obs(self.full.reset(x))
     def step(self,u):
-        c,x = self.full.step(u)
-        return c,self.obs(x)
+        x,c = self.full.step(u)
+        return self.obs(x),-c
     def render(self):
         return self.full.render()
     @property
@@ -203,7 +206,7 @@ from discretization import VectorDiscretization
 class EnvDiscretized(EnvAbstract):
     def __init__(self,envContinuous,discretize_x = 0,discretize_u = 0):
         self.conti = envContinuous
-        if discretize_u:
+        if discretize_u is not 0:
             self.discretize_u = VectorDiscretization(self.conti.nu,
                                                      vmax=self.conti.umax,nsteps=discretize_u)
             self.encode_u = self.discretize_u.c2i
@@ -214,7 +217,7 @@ class EnvDiscretized(EnvAbstract):
             self.encode_u = lambda u:u
             self.decode_u = lambda u:u
             nu = envContinuous.nu
-        if discretize_x:
+        if discretize_x is not 0:
             self.discretize_x = VectorDiscretization(self.conti.nx,
                                                      vmax=self.conti.xmax,nsteps=discretize_x)
             self.encode_x = self.discretize_x.c2i
@@ -232,9 +235,9 @@ class EnvDiscretized(EnvAbstract):
         return self.encode_x(self.conti.randomState())
     def display(self,x):
         self.conti.display(self.decode_x(x))
-    def costAndDyn(self,x,u):
-        c,x=self.conti.costAndDyn(self.decode_x(x),self.decode_u(u))
-        return c,self.encode_x(x)
+    def dynAndCost(self,x,u):
+        x,c=self.conti.dynAndCost(self.decode_x(x),self.decode_u(u))
+        return self.encode_x(x),c
     def reset(self,xi=None):
         if xi is None:
             x = self.conti.reset()
@@ -243,14 +246,17 @@ class EnvDiscretized(EnvAbstract):
             x = None
         x_eps = self.decode_x(xi)
         if x_eps is not x:
-            self.conti.reset()
-        return xi
+            self.conti.reset(x_eps)
+        self.x = xi
+        return self.x
     def step(self,u):
-        c,x = self.conti.step(u)
-        xi = self.encode_x(x)
-        x_eps = self.decode_x(x)
-        if x_eps is not x: self.conti.reset(x)
-        return c,xi
+        ###assert(self.x == self.encode_x(self.conti.x))
+        ###assert(np.allclose(self.decode_x(self.x),self.conti.x))
+        x,c   = self.conti.step(self.decode_u(u))
+        self.x= self.encode_x(x)
+        x_eps = self.decode_x(self.x)
+        if x_eps is not x: self.conti.reset(x_eps)
+        return self.x,-c
     def render(self):
         self.conti.render()
 

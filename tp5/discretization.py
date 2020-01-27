@@ -29,7 +29,9 @@ class VectorDiscretization:
     def continuous2discrete(self,vc):
         if self.modulo is not None and len(self.moduloIdx)>0:
             vc = vc.copy()
+            vc[self.moduloIdx] += self.modulo/2
             vc[self.moduloIdx] = vc[self.moduloIdx] % self.modulo
+            vc[self.moduloIdx] -= self.modulo/2
         vc = np.clip(vc,self.vmin,self.vmax)
         return ((vc-self.vmin)/(self.vmax-self.vmin)*self.nsteps).astype(self.nsteps.dtype)
 
