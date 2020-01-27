@@ -36,11 +36,12 @@ class EnvPendulum(EnvPinocchio):
         self.x0         = np.concatenate([self.q0,self.v0])
 
         EnvPinocchio.__init__(self,self.robot_wrapper.model,self.robot_wrapper,taumax=2.5)
-        self.DT = 5e-2
+        self.DT = 1e-2
         self.NDT = 5
         self.Kf = 1.0
 
         self.costWeights = { 'q': 1, 'v' : 1e-1, 'u' : 1e-3, 'tip' : 0. }
+        self.tipDes = float(nbJoint)
         
     def cost(self,x=None,u=None):
         if x is None: x = self.x
@@ -50,7 +51,7 @@ class EnvPendulum(EnvPinocchio):
         cost += self.costWeights['q']*np.sum((q-qdes)**2)
         cost += self.costWeights['v']*np.sum(v**2)
         cost += 0 if u is None else self.costWeights['u']*np.sum(u**2)
-        cost += self.costWeights['tip']*(self.tip(q)-1)**2
+        cost += self.costWeights['tip']*(self.tip(q)-self.tipDes)**2
         return cost
 
     def tip(self,q=None):
@@ -69,16 +70,18 @@ class EnvPendulumDiscrete(env_abstract.EnvDiscretized):
         env.DT=5e-1
         env.NDT=5
         env.Kf=0.1
-        env_abstract.EnvDiscretized.__init__(self,env,np.array([21,19]),9)
+        env_abstract.EnvDiscretized.__init__(self,env,21,11)
         self.discretize_x.modulo = np.pi*2
         self.discretize_x.moduloIdx = range(env.nq)
         self.discretize_x.vmax[:env.nq] = np.pi
         self.discretize_x.vmin[:env.nq] = -np.pi
         self.reset()
-        self.conti.cost = lambda x,u: int(np.all(x<1e-2))
+        self.conti.costWeights = { 'q': 0, 'v' : 0, 'u' : 0, 'tip' : 1 }
+        self.withSimpleCost = True
     def step(self,u):
         x,c=env_abstract.EnvDiscretized.step(self,u)
-        c = int(np.all(np.abs(self.conti.x)<1e-3))
+        if self.withSimpleCost:
+            c = int(np.all(np.abs(self.conti.x)<1e-3))
         return x,c
         
 class EnvPendulumSinCos(env_abstract.EnvPartiallyObservable):

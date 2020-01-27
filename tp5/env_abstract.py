@@ -106,7 +106,7 @@ class EnvPinocchio(EnvContinuousAbstract):
                                        xmin=np.concatenate([qmin.ravel(),vmin.ravel()]),
                                        umax=taumax)
         # Options parameters
-        self.sleepAtDisplay = 1e-2
+        self.sleepAtDisplay = 8e-2
         self.xdes = np.zeros(self.nx)
         self.costWeights = { 'wx': 1., 'wu': 1e-2 } 
         self.DT  = 5e-2   # Step length
@@ -141,7 +141,8 @@ class EnvPinocchio(EnvContinuousAbstract):
             # Add friction
             if self.Kf>0.0: tau = u - self.Kf*v
             # Evaluate cost
-            cost  += self.cost(x,u)/self.NDT
+            cost  += self.cost(np.concatenate([q,v]),u)/self.NDT
+            #print(self,self.cost,t,x,u,cost)
             # Evaluate dynamics
             a = pio.aba(self.rmodel,self.rdata,q,v,tau)
             if verbose: print(q,v,tau,a)
@@ -256,7 +257,7 @@ class EnvDiscretized(EnvAbstract):
         self.x= self.encode_x(x)
         x_eps = self.decode_x(self.x)
         if x_eps is not x: self.conti.reset(x_eps)
-        return self.x,-c
+        return self.x,c
     def render(self):
         self.conti.render()
 
