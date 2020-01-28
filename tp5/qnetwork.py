@@ -41,74 +41,56 @@ def batch_gather(reference, indices):
     return tf.gather_nd(reference,indices=indices)
 
 
-NX=3
-NU=11
+NX=1
+NU=1
 NHIDEN1=32
 NHIDEN2=32
 
 x = np.random.random([1,NX])
 xs = np.random.random([5,NX])
-u = np.array([1])
-us = np.array([1,1,1,2,0])
+u = np.array([1]); u=np.clip(u,0,NU-1)
+us = np.array([1,1,1,2,0]); us=np.clip(us,0,NU-1)
 usi = np.array([range(5),us]).T
 
-model = keras.Sequential()
-# Adds a densely-connected layer with 64 units to the model:
-model.add(keras.layers.Dense(NX, activation='relu'))
-model.add(keras.layers.Dense(NHIDEN1, activation='relu'))
-model.add(keras.layers.Dense(NHIDEN2, activation='relu'))
-model.add(keras.layers.Dense(NU, activation='linear'))
-
 input_x = keras.Input(shape=(NX,), name='state')
-dens1 = keras.layers.Dense(NHIDEN1, activation='relu', name='dense_1')(input_x)
-dens2 = keras.layers.Dense(NHIDEN2, activation='relu', name='dense_2')(dens1)
-qvalues = keras.layers.Dense(NU, activation='linear', name='values')(dens2)
-#value = tf.reduce_max(qvalues)
-value = keras.backend.max(qvalues,keepdims=True,axis=1)
-
 input_u = keras.Input(shape=(1,), name='control',dtype="int32")
-bsize   = K.shape(input_u)[0]
-idxs    = tf.reshape(tf.range(bsize),[bsize,1])
-ui      = tf.concat([idxs,input_u],1)
-qvalue  = tf.gather_nd(qvalues,indices=ui)
-
-
+dens1 = keras.layers.Dense(NHIDEN1, activation='relu', name='dense_1',
+                           bias_initializer='random_uniform')(input_x)
+dens2 = keras.layers.Dense(NHIDEN2, activation='relu', name='dense_2',
+                           bias_initializer='random_uniform')(dens1)
+qvalues = keras.layers.Dense(NU, activation='linear', name='values',
+                             bias_initializer='random_uniform')(dens2)
+value = keras.backend.max(qvalues,keepdims=True,axis=1)
 qvalue = batch_gather(qvalues,input_u)
-#qvalue = tf.gather_nd(input_x,tf.stack([tf.range(K.shape(input_u)[0]), input_u], axis=1))
-# qvalue = tf.gather_nd(qvalues,
-#                       indices=tf.concat([ tf.reshape(tf.range(tf.shape(input_u)[0],input_u],1)
 
+modelq = keras.Model(inputs=[input_x,input_u],outputs=[qvalues,value,qvalue])
 
-model2 = keras.Model(inputs=input_x, outputs=qvalues)
-modelmax = keras.Model(inputs=input_x, outputs=value)
-modelqv = keras.Model(inputs=input_x, outputs=[qvalues,value])
-modelq = keras.Model(inputs=[input_x,input_u],outputs=[qvalue])
-
-qs,v=modelqv.predict(x)
+qs,v,q=modelq.predict([x,u])
 assert(max(qs.flat)==v[0,0])
 
-qs,v=modelqv.predict(xs)
-q=modelq.predict([xs,us])
+qs,v,q=modelq.predict([xs,us])
 for i,ui in enumerate(us):
     assert(qs[i,ui]==q[i])
 
 
-stophere
+# --- TRIAL DATA ---
 
-n_init              = tflearn.initializations.truncated_normal(seed=randomSeed)
-u_init              = tflearn.initializations.uniform(minval=-0.003, maxval=0.003,\
-                                                              seed=randomSeed)
-nvars           = len(tf.trainable_variables())
+model = keras.Model(inputs=input_x,outputs=qvalues)
 
-#x       = tflearn.input_data(shape=[None, NX])
-#netx1   = tflearn.fully_connected(x,     nhiden1, weights_init=n_init, activation='relu')
-#netx2   = tflearn.fully_connected(netx1, nhiden2, weights_init=n_init)
-qvalues = tflearn.fully_connected(netx2, NU,      weights_init=u_init) # function of x only
-value   = tf.reduce_max(qvalues,axis=1)
-policy  = tf.argmax(qvalues,axis=1)
+A = np.random.random([ NX,NU])*2-1
+def data(x):
+    y = (5*x+3)**2
+    return y@A
 
-u       = tflearn.input_data(shape=[None, 1], dtype=tf.int32)
-bsize   = tf.shape(u)[0]
-idxs    = tf.reshape(tf.range(bsize),[bsize,1])
-ui      = tf.concat([idxs,u],1)
-qvalue  = tf.gather_nd(qvalues,indices=ui)
+NSAMPLES = 1000
+xs = np.random.random([ NSAMPLES,NX ])
+ys = np.vstack([ data(x) for x in xs ])
+
+model.compile(optimizer='adam',loss='mse')
+model.fit(xs,ys,epochs=200,batch_size=64)
+
+import matplotlib.pylab as plt
+plt.ion()
+plt.plot(xs,ys, '+')
+ypred=model.predict(xs)
+plt.plot(xs,ypred, '+r')
