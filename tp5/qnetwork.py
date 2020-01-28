@@ -41,56 +41,62 @@ def batch_gather(reference, indices):
     return tf.gather_nd(reference,indices=indices)
 
 
-NX=1
-NU=1
-NHIDEN1=32
-NHIDEN2=32
+def buildQModel(nx,nu,nhiden=32):
+    '''
+    Build a keras model computing:
+    - qvalues(x) = [ Q(x,u_1) ... Q(x,u_NU) ]
+    - value(x)   = max_u qvalues(x)
+    - qvalue(x,u) = Q(x,u)
+    '''
+    input_x = keras.Input(shape=(nx,), name='state')
+    input_u = keras.Input(shape=(1,), name='control',dtype="int32")
+    dens1 = keras.layers.Dense(nhiden, activation='relu', name='dense_1',
+                               bias_initializer='random_uniform')(input_x)
+    dens2 = keras.layers.Dense(nhiden, activation='relu', name='dense_2',
+                               bias_initializer='random_uniform')(dens1)
+    qvalues = keras.layers.Dense(nu, activation='linear', name='values',
+                                 bias_initializer='random_uniform')(dens2)
+    value = keras.backend.max(qvalues,keepdims=True,axis=1)
+    qvalue = batch_gather(qvalues,input_u)
+    policy = keras.backend.argmax(qvalues,axis=1)
+    
+    model_qs = keras.Model(inputs=input_x,outputs=qvalues)
+    model_v = keras.Model(inputs=input_x,outputs=value)
+    model_q = keras.Model(inputs=[input_x,input_u],outputs=qvalue)
+    model_pi = keras.Model(inputs=input_x,outputs=policy)
+    model_qs.compile(optimizer='adam',loss='mse')
+    model = keras.Model(inputs=[input_x,input_u],outputs=[qvalues,value,qvalue,policy])
+    
+    return model_qs,model_v,model_q,model_pi
 
-x = np.random.random([1,NX])
-xs = np.random.random([5,NX])
-u = np.array([1]); u=np.clip(u,0,NU-1)
-us = np.array([1,1,1,2,0]); us=np.clip(us,0,NU-1)
-usi = np.array([range(5),us]).T
+def targetAssign(model,modelTarget,rate):
+    '''
+    Change model to approach modelTarget, with homotopy parameter <rate>
+    (rate=0: do not change, rate=1: exacttly set it to the target).
+    '''
+    assert(rate<=1 and rate>=0)
+    for v,vtarget in zip(model.trainable_variables,modelTarget.trainable_variables):
+        v.assign((1-rate)*v.value()+rate*vtarget.value())
+    
 
-input_x = keras.Input(shape=(NX,), name='state')
-input_u = keras.Input(shape=(1,), name='control',dtype="int32")
-dens1 = keras.layers.Dense(NHIDEN1, activation='relu', name='dense_1',
-                           bias_initializer='random_uniform')(input_x)
-dens2 = keras.layers.Dense(NHIDEN2, activation='relu', name='dense_2',
-                           bias_initializer='random_uniform')(dens1)
-qvalues = keras.layers.Dense(NU, activation='linear', name='values',
-                             bias_initializer='random_uniform')(dens2)
-value = keras.backend.max(qvalues,keepdims=True,axis=1)
-qvalue = batch_gather(qvalues,input_u)
+if __name__ == "__main__":
+    NX = NU = 1
+    model,_,_,policy = buildQModel(NX,NU)
+    model2,_,_,_ = buildQModel(NX,NU)
+    
+    A = np.random.random([ NX,NU])*2-1
+    def data(x):
+        y = (5*x+3)**2
+        return y@A
 
-modelq = keras.Model(inputs=[input_x,input_u],outputs=[qvalues,value,qvalue])
+    NSAMPLES = 1000
+    xs = np.random.random([ NSAMPLES,NX ])
+    ys = np.vstack([ data(x) for x in xs ])
 
-qs,v,q=modelq.predict([x,u])
-assert(max(qs.flat)==v[0,0])
+    model.fit(xs,ys,epochs=200,batch_size=64)
 
-qs,v,q=modelq.predict([xs,us])
-for i,ui in enumerate(us):
-    assert(qs[i,ui]==q[i])
-
-
-# --- TRIAL DATA ---
-
-model = keras.Model(inputs=input_x,outputs=qvalues)
-
-A = np.random.random([ NX,NU])*2-1
-def data(x):
-    y = (5*x+3)**2
-    return y@A
-
-NSAMPLES = 1000
-xs = np.random.random([ NSAMPLES,NX ])
-ys = np.vstack([ data(x) for x in xs ])
-
-model.compile(optimizer='adam',loss='mse')
-model.fit(xs,ys,epochs=200,batch_size=64)
-
-import matplotlib.pylab as plt
-plt.ion()
-plt.plot(xs,ys, '+')
-ypred=model.predict(xs)
-plt.plot(xs,ypred, '+r')
+    import matplotlib.pylab as plt
+    plt.ion()
+    plt.plot(xs,ys, '+')
+    ypred=model.predict(xs)
+    plt.plot(xs,ypred, '+r')
