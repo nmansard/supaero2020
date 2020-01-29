@@ -93,15 +93,23 @@ class EnvPendulumSinCos(env_abstract.EnvPartiallyObservable):
         def atan(x,nq):
             cq,sq,v = x[:2*nq:2],x[1:2*nq,2],x[2*nq:]
             return np.concatenate([np.arctan2(sq,cq),v])
-        env_abstract.EnvPartiallyObservable.__init__(self,env,
-                                                     lambda x:sincos(x,env.nq),
-                                                     lambda csv:atan(csv,nq))
+        env_abstract.EnvPartiallyObservable.__init__(self,env,nobs=env.nq*2+env.nv,
+                                                     obs=lambda x:sincos(x,env.nq),
+                                                     obsInv=lambda csv:atan(csv,env.nq))
         self.reset()
         
 class EnvPendulumHybrid(env_abstract.EnvDiscretized):
     def __init__(self,nbJoint=1,withGepettoViewer=True):
         env = EnvPendulumSinCos(nbJoint,withGepettoViewer)
+        # env.umax[:] = 10; env.umin[:] = -10
+        # env.full.umax[:] = 10; env.full.umin[:] = -10
+        
         env_abstract.EnvDiscretized.__init__(self,env,discretize_x=0,discretize_u=11)
+        self.conti.full.Kf=.1
+        self.conti.full.DT=3e-1
+        self.conti.full.NDT=5
+        self.conti.full.costWeights = {'q': 0, 'tip': 1.0, 'u': 0.00, 'v': 0.1 }
+
         self.reset()
         
         

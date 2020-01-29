@@ -147,6 +147,7 @@ class EnvPinocchio(EnvContinuousAbstract):
             a = pio.aba(self.rmodel,self.rdata,q,v,tau)
             if verbose: print(q,v,tau,a)
             v += a*dt
+            v = np.clip(v,self.xmin[self.nq:],self.xmax[self.nq:])
             q = pio.integrate(self.rmodel,q,v*dt)
         xnext = np.concatenate([q,v])
         return xnext,cost
@@ -155,7 +156,7 @@ class EnvPinocchio(EnvContinuousAbstract):
 # --- PARTIALLY OBSERVABLE ---------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
 class EnvPartiallyObservable(EnvContinuousAbstract):
-    def __init__(self,env_fully_observable,obs,obsInv=None):
+    def __init__(self,env_fully_observable,nobs,obs,obsInv=None):
         '''
         Define a partially-observable markov model from a fully-observable model
         and an observation function.
@@ -169,7 +170,7 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
         self.full = env_fully_observable
         self.obs = obs
         self.obsinv = obs
-        EnvContinuousAbstract.__init__(self,nx=self.full.nx,
+        EnvContinuousAbstract.__init__(self,nx=nobs,
                                        nu=self.full.nu,
                                        xmax=obs(self.full.xmax),
                                        xmin=obs(self.full.xmin),
@@ -190,7 +191,7 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
         return self.obs(self.full.reset(x))
     def step(self,u):
         x,c = self.full.step(u)
-        return self.obs(x),-c
+        return self.obs(x),c
     def render(self):
         return self.full.render()
     @property
