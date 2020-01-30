@@ -21,7 +21,7 @@ import tensorflow as tf
 import numpy as np
 
 ### --- Random seed
-RANDOM_SEED = int((time.time()%10)*1000)
+RANDOM_SEED = 66#int((time.time()%10)*1000)
 print("Seed = %d" %  RANDOM_SEED)
 np .random.seed     (RANDOM_SEED)
 random.seed         (RANDOM_SEED)
@@ -72,6 +72,8 @@ signal.signal(signal.SIGTSTP, lambda x,y:rendertrial()) # Roll-out when CTRL-Z i
 ### History of search
 h_rwd = []
 h_ste = []    
+from dglib import load
+load(qvalue,qvalueTarget)
 
 ### --- Training
 for episode in range(1,NEPISODES):
@@ -101,17 +103,16 @@ for episode in range(1,NEPISODES):
             r_batch    = np.array([ [b.reward] for b in batch ])
             d_batch    = np.array([ [b.done]   for b in batch ])
             x2_batch   = np.vstack([ b.x2     for b in batch ])
-
+            
             # Compute Q(x,u) from target network
             v_batch    = qvalueTarget.value(x2_batch)
             qref_batch = r_batch + (d_batch==False)*(DECAY_RATE*v_batch)
-            
-            # Update qvalue to solve HJB constraint: q = r + q'
-            qvalue.trainer.fit({"state":x_batch,"control":u_batch},qref_batch,
-                               batch_size=BATCH_SIZE,verbose=0)
 
+            # Update qvalue to solve HJB constraint: q = r + q'
+            qvalue.trainer.train_on_batch([x_batch,u_batch],qref_batch)
+            
             # Update target networks by homotopy.
-            qvalueTarget.targetAssign(qvalue,UPDATE_RATE)
+            #qvalueTarget.targetAssign(qvalue,UPDATE_RATE)
       
     # \\\END_FOR step in range(NSTEPS)
 

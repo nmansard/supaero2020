@@ -25,7 +25,7 @@ import numpy as np
 tf.compat.v1.disable_eager_execution()
 
 ### --- Random seed
-RANDOM_SEED = int((time.time()%10)*1000)
+RANDOM_SEED = 66#int((time.time()%10)*1000)
 print("Seed = %d" %  RANDOM_SEED)
 np .random.seed     (RANDOM_SEED)
 #tf .set_random_seed (RANDOM_SEED)
@@ -90,6 +90,9 @@ signal.signal(signal.SIGTSTP, lambda x,y:rendertrial()) # Roll-out when CTRL-Z i
 h_rwd = []
 h_ste = []    
 
+from dglib import save
+save(qvalue,qvalueTarget)
+
 ### --- Training
 for episode in range(1,NEPISODES):
     x    = env.reset()
@@ -123,13 +126,14 @@ for episode in range(1,NEPISODES):
             v_batch    = sess.run(qvalueTarget.value, feed_dict={ qvalueTarget.x : x2_batch })
             qref_batch = r_batch + (d_batch==False)*(DECAY_RATE*v_batch)
 
+
             # Update qvalue to solve HJB constraint: q = r + q'
-            sess.run(qvalue.optim, feed_dict={ qvalue.x    : x_batch,
-                                               qvalue.u    : u_batch,
-                                               qvalue.qref : qref_batch })
+            a=sess.run(qvalue.optim, feed_dict={ qvalue.x    : x_batch,
+                                                 qvalue.u    : u_batch,
+                                                 qvalue.qref : qref_batch })
 
             # Update target networks by homotopy.
-            sess.run(qvalueTarget.update_variables)
+            #sess.run(qvalueTarget.update_variables)
 
     # \\\END_FOR step in range(NSTEPS)
 
