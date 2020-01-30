@@ -115,7 +115,9 @@ class EnvPinocchio(EnvContinuousAbstract):
         self.reset()
 
     def randomState(self):
-        q = pio.randomConfiguration(self.rmodel)
+        #q = pio.randomConfiguration(self.rmodel)
+        dq = self.xmax[:self.nq]-self.xmin[:self.nq]
+        q = np.random.random(self.nq)*dq + self.xmin[:self.nq]
         dv = self.xmax[-self.nv:]-self.xmin[-self.nv:]
         v = np.random.random(self.nv)*dv+self.xmin[-self.nv:]
         return np.concatenate([q,v])
@@ -177,7 +179,7 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
                                        umax=self.full.umax,umin=self.full.umin)
 
     def randomState(self):
-        return self.obs(self.full.randomState)
+        return self.obs(self.full.randomState())
     def dynAndCost(self,x,u):
         assert(self.obsinv is not None)
         x,c = self.full.dynAndCost(self.obsinv(x),u)

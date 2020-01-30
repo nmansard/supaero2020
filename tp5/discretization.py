@@ -50,6 +50,7 @@ class VectorDiscretization:
     
     def unflatten(self,i):
         '''change a flat int into an array of int.'''
+        if isinstance(i,np.ndarray): i=i[0]
         assert(i>=0 and i<self.nd)
         res = []
         for n in reversed(self.nsteps):
