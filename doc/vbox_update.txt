@@ -17,3 +17,7 @@ sudo apt upgrade
 #   It is recommanded to add a symbolic link to keep the previous path acceptable.
 sudo ln -snf /opt/openrobots/share/example-robot-data/robots/ /opt/openrobots/share/example-robot-data/
 
+# Install Crocoddyl
+sudo apt update
+sudo apt install robotpkg-py3\*-crocoddyl
+
