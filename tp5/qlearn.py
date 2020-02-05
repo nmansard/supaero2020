@@ -2,7 +2,8 @@
 Train a Q-value following a classical Q-learning algorithm (enforcing the
 satisfaction of HJB method), using a noisy greedy exploration strategy.
 
-The result of a training for a continuous Cozmo are stored in netvalue/qlearn_cozmo1.ckpt.
+The result of a training for a continuous pendulum (after 200 iterations) 
+are stored in qvalue.h5.
 
 Reference:
 Mnih, Volodymyr, et al. "Human-level control through deep reinforcement learning." 
@@ -18,17 +19,16 @@ import matplotlib.pyplot as plt
 import random
 import numpy as np
 import tensorflow as tf
-import numpy as np
 
 ### --- Random seed
-RANDOM_SEED = 66#int((time.time()%10)*1000)
+RANDOM_SEED = int((time.time()%10)*1000)
 print("Seed = %d" %  RANDOM_SEED)
 np .random.seed     (RANDOM_SEED)
 random.seed         (RANDOM_SEED)
 
 ### --- Hyper paramaters
-NEPISODES               = 10000           # Max training steps
-NSTEPS                  = 60           # Max episode length
+NEPISODES               = 1000          # Max training steps
+NSTEPS                  = 60            # Max episode length
 QVALUE_LEARNING_RATE    = 0.001         # Base learning rate for the Q-value Network
 DECAY_RATE              = 0.99          # Discount factor 
 UPDATE_RATE             = 0.01          # Homotopy rate to update the networks
@@ -53,9 +53,11 @@ class ReplayItem:
 replayDeque = deque()
 
 ### --- Tensor flow initialization
-qvalue          = QNetwork(nx=NX,nu=NU)
+qvalue          = QNetwork(nx=NX,nu=NU,learning_rate=QVALUE_LEARNING_RATE)
 qvalueTarget    = QNetwork(name='target',nx=NX,nu=NU)
-### TODO: set learning and update rates
+# Uncomment to load networks
+#qvalue.load()
+#qvalueTarget.load()
 
 def rendertrial(maxiter=NSTEPS,verbose=True):
     x = env.reset()
@@ -72,8 +74,6 @@ signal.signal(signal.SIGTSTP, lambda x,y:rendertrial()) # Roll-out when CTRL-Z i
 ### History of search
 h_rwd = []
 h_ste = []    
-from dglib import load
-load(qvalue,qvalueTarget)
 
 ### --- Training
 for episode in range(1,NEPISODES):
@@ -84,13 +84,11 @@ for episode in range(1,NEPISODES):
         u       = qvalue.policy(x,                                     # Greedy policy ...
                                 noise=1. / (1. + episode + step))      # ... with noise
         x2,r    = env.step(u)
-        done    = False
+        done    = False # Some environment may return information when task completed
 
         replayDeque.append(ReplayItem(x,u,r,done,x2))                # Feed replay memory ...
         if len(replayDeque)>REPLAY_SIZE: replayDeque.popleft()       # ... with FIFO forgetting.
 
-        assert( x2.shape == (NX,) )
-        
         rsum   += r
         x       = x2
         if done: break
@@ -112,7 +110,7 @@ for episode in range(1,NEPISODES):
             qvalue.trainer.train_on_batch([x_batch,u_batch],qref_batch)
             
             # Update target networks by homotopy.
-            #qvalueTarget.targetAssign(qvalue,UPDATE_RATE)
+            qvalueTarget.targetAssign(qvalue,UPDATE_RATE)
       
     # \\\END_FOR step in range(NSTEPS)
 
@@ -130,5 +128,4 @@ plt.plot( np.cumsum(h_rwd)/range(1,NEPISODES) )
 plt.show()
 
 # Uncomment to save networks
-#tf.train.Saver().save   (sess, "netvalues/qlearn_cozmo1.ckpt")
-
+#qvalue.save()

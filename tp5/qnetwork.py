@@ -48,7 +48,26 @@ class QNetwork:
     - value(x)   = max_u qvalues(x)
     - qvalue(x,u) = Q(x,u)
     '''
-    def __init__(self,nx,nu,name='',nhiden=32):
+    def __init__(self,nx,nu,name='',nhiden=32,learning_rate=None):
+        '''
+        The network has the following structure:
+
+        x =>  [ DENSE1 ] => [ DENSE2 ] => [ QVALUES ] ==========MAX=> VALUE(x)
+                                                    \=>[         ]
+        u ============================================>[ NGATHER ] => QVALUE(x,u)
+
+        where:
+        - qvalues(x) = [ qvalue(x,u=0) ... qvalue(x,u=NU-1) ]
+        - value(x) = max_u qvalues(x)
+        - value(x,u) = qvalues(x)[u]
+
+        The <trainer> model self.trainer corresponds to a mean-square loss of qvalue(x,u)
+        wrt to a reference q_ref.
+        The main model self.model has no optimizer and simply computes qvalues,value,qvalue
+        as a function of x and u (useful for debug only).
+        Additional helper functions are set to compute the value function and the policy.        
+        '''
+                
         self.nx=nx;self.nu=nu
         input_x = keras.Input(shape=(nx,), name=name+'state')
         input_u = keras.Input(shape=(1,), name=name+'control',dtype="int32")
@@ -65,13 +84,15 @@ class QNetwork:
         policy = keras.backend.argmax(qvalues,axis=1)
         policy = keras.layers.Lambda(lambda x:x,name=name+'policy')(policy)
         
-        #model = keras.Model(inputs=[input_x,input_u],outputs=[qvalues,value,qvalue,policy])
         self.trainer = keras.Model(inputs=[input_x,input_u],outputs=qvalue)
+        self.saver = keras.Model(inputs=input_x,outputs=qvalues)
         self.trainer.compile(optimizer='adam',loss='mse')
-        #self.trainer.optimizer.lr = LEARNING_RATE
+        if learning_rate is not None:
+            self.trainer.optimizer.lr = learning_rate
 
         self.model = keras.Model(inputs=[input_x,input_u],
                                  outputs=[qvalues,value,qvalue,policy])
+        self.saver = keras.Model(inputs=input_x,outputs=qvalues) # For saving the weights
 
         self._policy = keras.backend.function(input_x,policy)
         self._qvalues = keras.backend.function(input_x,qvalues)
@@ -82,17 +103,21 @@ class QNetwork:
         self._h1 = keras.backend.function(input_x,dens1)
         self._h2 = keras.backend.function(input_x,dens2)
         
-    def targetAssign(self,target,rate):
+    def targetAssign(self,ref,rate):
         '''
-        Change model to approach modelTarget, with homotopy parameter <rate>
-        (rate=0: do not change, rate=1: exacttly set it to the target).
+        Change model to approach modelRef, with homotopy parameter <rate>
+        (rate=0: do not change, rate=1: exacttly set it to the ref).
         '''
         assert(rate<=1 and rate>=0)
-        for v,vtarget in zip(self.trainer.trainable_variables,target.trainer.trainable_variables):
-            v.assign((1-rate)*v+rate*vtarget)
-            #v.assign((1-rate)*v.eval()+rate*vtarget.eval())
+        for v,vref in zip(self.trainer.trainable_variables,ref.trainer.trainable_variables):
+            v.assign((1-rate)*v+rate*vref)
 
     def policy(self,x,noise=None):
+        '''
+        Evaluate the policy u = pi(x) = argmax_u Q(x,u).
+        If noise is not None, then evaluate a noisy-greedy policy 
+        u = pi(x|noise) = argmax_u(Q(x,u)+uniform(noise)).
+        '''
         if len(x.shape)==1: x=np.reshape(x,[1,len(x)])
         if noise is None:  return self._policy(x)
         q = self._qvalues(x)
@@ -100,9 +125,17 @@ class QNetwork:
         return np.argmax(q,axis=1)
 
     def value(self,x):
+        '''
+        Evaluate the value function at x: V(x).
+        '''
         if len(x.shape)==1: x=np.reshape(x,[1,len(x)])
         return self._value(x)
-        
+
+    def save(self,filename='qvalue.h5'):
+        self.saver.save_weights(filename)
+    def load(self,filename='qvalue.h5'):
+        self.saver.load_weights(filename)
+    
 
 if __name__ == "__main__":
     NX = 3; NU = 10
