@@ -4,19 +4,19 @@ Example of Q-table learning with a simple discretized 1-pendulum environment.
 -- Converge in 10k episods with cozmo model
 '''
 
-import numpy as np
-
-#from cozmomodel import Cozmo1 as Env
-from env_pendulum import EnvPendulumDiscrete; Env = lambda : EnvPendulumDiscrete(1)
-
 import matplotlib.pyplot as plt
 import signal
 import time
+import numpy as np
 
 ### --- Random seed
 RANDOM_SEED = int((time.time()%10)*1000)
 print("Seed = %d" % RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
+
+### --- Environment
+from tp5.env_pendulum import EnvPendulumDiscrete; Env = lambda : EnvPendulumDiscrete(1)
+env = Env()
 
 ### --- Hyper paramaters
 NEPISODES               = 100000           # Number of training episodes
@@ -24,11 +24,6 @@ NSTEPS                  = 50            # Max episode length
 LEARNING_RATE           = 0.85          # 
 DECAY_RATE              = 0.99          # Discount factor 
 
-### --- Environment
-env = Env()
-
-NX  = env.nx                            # Number of (discrete) states
-NU  = env.nu                            # Number of (discrete) controls
 Q     = np.zeros([env.nx,env.nu])       # Q-table initialized to 0
 
 def rendertrial(s0=None,maxiter=100):
@@ -40,13 +35,13 @@ def rendertrial(s0=None,maxiter=100):
         env.render()
 
 signal.signal(signal.SIGTSTP, lambda x,y:rendertrial()) # Roll-out when CTRL-Z is pressed
-h_rwd = []                              # Learning history (for plot).
 
+h_rwd = []                              # Learning history (for plot).
 for episode in range(1,NEPISODES):
     x    = env.reset()
     rsum = 0.0
     for steps in range(NSTEPS):
-        u         = np.argmax(Q[x,:] + np.random.randn(1,NU)/episode) # Greedy action with noise
+        u         = np.argmax(Q[x,:] + np.random.randn(1,env.nu)/episode) # Greedy action with noise
         x2,reward = env.step(u)
         
         # Compute reference Q-value at state x respecting HJB

@@ -205,7 +205,7 @@ class EnvPartiallyObservable(EnvContinuousAbstract):
 # ----------------------------------------------------------------------------------------
 # --- DISCRETIZED ENV --------------------------------------------------------------------
 # ----------------------------------------------------------------------------------------
-from discretization import VectorDiscretization
+from tp5.discretization import VectorDiscretization
 
 class EnvDiscretized(EnvAbstract):
     def __init__(self,envContinuous,discretize_x = 0,discretize_u = 0):

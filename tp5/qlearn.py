@@ -11,7 +11,7 @@ Nature 518.7540 (2015): 529.
 '''
 
 from env_pendulum import EnvPendulumHybrid; Env = lambda : EnvPendulumHybrid(1)
-from qnetwork import QNetwork
+from tp5.qnetwork import QNetwork
 from collections import deque
 import time
 import signal
@@ -26,6 +26,9 @@ print("Seed = %d" %  RANDOM_SEED)
 np .random.seed     (RANDOM_SEED)
 random.seed         (RANDOM_SEED)
 
+### --- Environment
+env                 = Env()
+
 ### --- Hyper paramaters
 NEPISODES               = 1000          # Max training steps
 NSTEPS                  = 60            # Max episode length
@@ -36,11 +39,6 @@ REPLAY_SIZE             = 10000         # Size of replay buffer
 BATCH_SIZE              = 64            # Number of points to be fed in stochastic gradient
 NH1 = NH2               = 32            # Hidden layer size
 
-### --- Environment
-env                 = Env()
-NX                  = env.nx            # ... training converges with q,qdot with 2x more neurones.
-NU                  = env.nu            # Control is dim-1: joint torque
-
 ### --- Replay memory
 class ReplayItem:
     def __init__(self,x,u,r,d,x2):
@@ -49,12 +47,11 @@ class ReplayItem:
         self.reward     = r
         self.done       = d
         self.x2         = x2
-
 replayDeque = deque()
 
 ### --- Tensor flow initialization
-qvalue          = QNetwork(nx=NX,nu=NU,learning_rate=QVALUE_LEARNING_RATE)
-qvalueTarget    = QNetwork(name='target',nx=NX,nu=NU)
+qvalue          = QNetwork(nx=env.nx,nu=env.nu,learning_rate=QVALUE_LEARNING_RATE)
+qvalueTarget    = QNetwork(name='target',nx=env.nx,nu=env.nu)
 # Uncomment to load networks
 #qvalue.load()
 #qvalueTarget.load()
@@ -73,7 +70,6 @@ signal.signal(signal.SIGTSTP, lambda x,y:rendertrial()) # Roll-out when CTRL-Z i
 
 ### History of search
 h_rwd = []
-h_ste = []    
 
 ### --- Training
 for episode in range(1,NEPISODES):
@@ -117,7 +113,6 @@ for episode in range(1,NEPISODES):
     # Display and logging (not mandatory).
     print('Ep#{:3d}: lasted {:d} steps, reward={:3.0f}' .format(episode, step,rsum))
     h_rwd.append(rsum)
-    h_ste.append(step)
     if not (episode+1) % 200:     rendertrial(30)
 
 # \\\END_FOR episode in range(NEPISODES)

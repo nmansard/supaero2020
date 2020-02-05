@@ -5,9 +5,9 @@ See the main at the end of the file for an example.
 
 import pinocchio as pio
 import numpy as np
-from models.pendulum import createPendulumWrapper
-from env_abstract import EnvPinocchio
-import env_abstract
+from tp5.models.pendulum import createPendulumWrapper
+from tp5.env_abstract import EnvPinocchio
+import tp5.env_abstract as env_abstract
 
 # --- PENDULUM ND CONTINUOUS --------------------------------------------------------------------
 # --- PENDULUM ND CONTINUOUS --------------------------------------------------------------------
