@@ -7,7 +7,7 @@ import random
 import tensorflow as tf
 import tensorflow.compat.v1 as tf1
 import matplotlib.pyplot as plt
-from env_pendulum import EnvPendulumDiscrete; Env = lambda : EnvPendulumDiscrete(1)
+from tp5.env_pendulum import EnvPendulumDiscrete; Env = lambda : EnvPendulumDiscrete(1)
 import signal
 import time
 tf1.disable_eager_execution()
