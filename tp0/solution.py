@@ -1,15 +1,17 @@
-import pinocchio as pio
-from pinocchio.utils import *
+import pinocchio as pin
 import time
-from numpy.linalg import inv,norm
-import eigenpy; eigenpy.switchToNumpyMatrix()
+import numpy as np
+from numpy.linalg import inv,norm,pinv,svd,eig
 import matplotlib.pylab as plt; plt.ion()
 from scipy.optimize import fmin_slsqp
-from load_environment import createUR5WithObstacles,Target
+from load_environment import createRobotWithObstacles,Target
 
-robot = createUR5WithObstacles()
-target = Target(robot.viewer,position = np.matrix([.5,.5]).T)
+robot = createRobotWithObstacles()
+robot.initViewer(loadModel=True)
+viz = robot.viz
+target = Target(robot.viz,position = np.array([.5,.5]))
 
+################################################################################
 ################################################################################
 ################################################################################
 
@@ -17,7 +19,7 @@ def q2_to_q6(q2):
      '''
      Transform a vector 2 into a vector 6, corresponding to locking 4 joints of the 6-dof arm. 
      '''
-     q6 = zero(6)
+     q6 = np.zeros(6)
      q6.flat[[1,2]] = q2
      return q6
 
@@ -26,7 +28,7 @@ def q6_to_q2(q6):
 
 def endef(q):
      '''Return the 2d position of the end effector.'''
-     pio.forwardKinematics(robot.model,robot.data,q)
+     pin.forwardKinematics(robot.model,robot.data,q)
      return robot.data.oMi[-1].translation[[0,2]]
 
 def dist(q):
@@ -35,8 +37,8 @@ def dist(q):
 
 def coll(q):
      '''Return true if in collision, false otherwise.'''
-     pio.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
-     return pio.computeCollisions(robot.collision_model,robot.collision_data,False)
+     pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
+     return pin.computeCollisions(robot.collision_model,robot.collision_data,False)
 
 def qrand(check=False):
     '''
@@ -44,16 +46,16 @@ def qrand(check=False):
     configuration is not is collision
     '''
     while True:
-        q = q2_to_q6(rand(2)*6-3)  # sample between -3 and +3.
+        q = q2_to_q6(np.random.rand(2)*6-3)  # sample between -3 and +3.
         if not check or not coll(q): return q
 
 def collisionDistance(q):
      '''Return the minimal distance between robot and environment. '''
      threshold = 1e-2
-     pio.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
-     if pio.computeCollisions(robot.collision_model,robot.collision_data,False): return -threshold
-     idx = pio.computeDistances(robot.collision_model,robot.collision_data)
-     return pio.computeDistance(robot.collision_model,robot.collision_data,idx).min_distance - threshold
+     pin.updateGeometryPlacements(robot.model,robot.data,robot.collision_model,robot.collision_data,q)
+     if pin.computeCollisions(robot.collision_model,robot.collision_data,False): return -threshold
+     idx = pin.computeDistances(robot.collision_model,robot.collision_data)
+     return pin.computeDistance(robot.collision_model,robot.collision_data,idx).min_distance - threshold
 
 ################################################################################
 ################################################################################
@@ -64,11 +66,11 @@ def qrandTarget(threshold=5e-2, display=True):
      while True:
           q = qrand()
           if display:
-               robot.display(q)
+               viz.display(q)
                time.sleep(1e-3)
           if not coll(q) and dist(q)<threshold:
                return q
-#qrandTarget()
+viz.display(qrandTarget())
 
 ################################################################################
 ################################################################################
@@ -83,7 +85,7 @@ def randomDescent():
           qtry = q+dq                               # ... apply
           if dist(q)>dist(q+dq) and not coll(q+dq): # If distance decrease without collision ...
                q = q+dq                             # ... keep the step
-               robot.display(q)                     # ... display it
+               viz.display(q)                       # ... display it
                time.sleep(5e-3)                     # ... and sleep for a short while
 #randomDescent()
 
@@ -145,8 +147,8 @@ def callback(q):
      '''
      At each optimization step, display the robot configuration in gepetto-viewer.
      '''
-     robot.display(q2_to_q6(q))
-     time.sleep(.001)
+     viz.display(q2_to_q6(q))
+     time.sleep(.01)
 
 def optimize():
      '''

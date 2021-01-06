@@ -4,22 +4,23 @@ field made of several capsules, display them in the viewer and create the
 collision detection to handle it.
 '''
 
-import pinocchio as pio
-from pinocchio.robot_wrapper import RobotWrapper
-from pinocchio.utils import *
-import eigenpy
+import pinocchio as pin
+import example_robot_data as robex
+import numpy as np
 import itertools
-eigenpy.switchToNumpyMatrix()
 
-exampleRobotDataPath = '/opt/openrobots/share/example-robot-data/robots/'
-def createUR5WithObstacles(path = exampleRobotDataPath,
-                           urdf = exampleRobotDataPath + 'ur_description/urdf/ur5_gripper.urdf',
-                           initViewer = True):
+
+def XYZRPYtoSE3(xyzrpy):
+    rotate = pin.utils.rotate
+    R = rotate('x',xyzrpy[3]) @ rotate('y',xyzrpy[4]) @ rotate('z',xyzrpy[5])
+    p = np.array(xyzrpy[:3])
+    return pin.SE3(R,p)
+
+def createRobotWithObstacles(robotname='ur5'):
 
     ### Robot
     # Load the robot
-    robot = RobotWrapper.BuildFromURDF( urdf, [ path, ] )
-    if initViewer: robot.initViewer( loadModel = True )
+    robot = robex.load(robotname)
 
     ### Obstacle map
     # Capsule obstacles will be placed at these XYZ-RPY parameters
@@ -30,18 +31,15 @@ def createUR5WithObstacles(path = exampleRobotDataPath,
 
     # Load visual objects and add them in collision/visual models
     color = [ 1.0, 0.2, 0.2, 1.0 ]                       # color of the capsules
-    rad,length = .1,0.2                                  # radius and length of capsules
+    rad,length = .1,0.4                                  # radius and length of capsules
     for i,xyzrpy in enumerate(oMobs):
-        obs = pio.GeometryObject.CreateCapsule(rad,length)  # Pinocchio obstacle object
+        obs = pin.GeometryObject.CreateCapsule(rad,length)  # Pinocchio obstacle object
+        obs.meshColor = np.array([ 1.0, 0.2, 0.2, 1.0 ])    # Don't forget me, otherwise I am transparent ...
         obs.name = "obs%d"%i                                # Set object name
         obs.parentJoint = 0                                 # Set object parent = 0 = universe
-        obs.placement = pio.SE3( rotate('x',xyzrpy[3]) * rotate('y',xyzrpy[4]) * rotate('z',xyzrpy[5]), 
-                                 np.matrix([xyzrpy[:3]]).T )  # Set object placement wrt parent
+        obs.placement = XYZRPYtoSE3(xyzrpy)  # Set object placement wrt parent
         robot.collision_model.addGeometryObject(obs)  # Add object to collision model
         robot.visual_model   .addGeometryObject(obs)  # Add object to visual model
-        # Also create a geometric object in gepetto viewer, with according name.
-        robot.viewer.gui.addCapsule( "world/pinocchio/collisions/"+obs.name, rad,length,color )
-        robot.viewer.gui.addCapsule( "world/pinocchio/visuals/"+obs.name, rad,length, [ 1.0, 0.2, 0.2, 1.0 ] )
 
     ### Collision pairs
     nobs = len(oMobs)
@@ -49,35 +47,52 @@ def createUR5WithObstacles(path = exampleRobotDataPath,
     robotBodies = range(nbodies)
     envBodies = range(nbodies,nbodies+nobs)
     for a,b in itertools.product(robotBodies,envBodies):
-        robot.collision_model.addCollisionPair(pio.CollisionPair(a,b))
+        robot.collision_model.addCollisionPair(pin.CollisionPair(a,b))
     
     ### Geom data
     # Collision/visual models have been modified => re-generate corresponding data.
-    robot.collision_data = pio.GeometryData(robot.collision_model)
-    robot.visual_data    = pio.GeometryData(robot.visual_model   )
-    robot.viz.collision_model = robot.collision_model
-    robot.viz.visual_model    = robot.visual_model
-    robot.viz.collision_data = robot.collision_data
-    robot.viz.visual_data    = robot.visual_data
-
-    robot.viz.displayCollisions(False)
+    robot.collision_data = pin.GeometryData(robot.collision_model)
+    robot.visual_data    = pin.GeometryData(robot.visual_model   )
 
     return robot
-
 
 
 class Target:
     '''
     Simple class target that stores and display the position of a target.
     '''
-    def __init__(self,viewer,color = [ .0, 1.0, 0.2, 1.0 ], size = 0.05, position=None):
-          self.name = "world/pinocchio/target"
-          self.position = position if position is not None else np.matrix([ 0.0,  0.0 ]).T
-          self.viewer = viewer
-          self.viewer.gui.addCapsule( self.name, size,0., color)
-          if position is not None and viewer is not None: self.display()
+    def __init__(self,viz=None,color = [ .0, 1.0, 0.2, 1.0 ], radius = 0.05, position=None):
+        self.position = position if position is not None else np.array([ 0.0,  0.0 ])
+        self.initVisual(viz,color,radius)
+        self.display()
+
+    def initVisual(self,viz,color,radius):
+        self.viz = viz
+        if viz is None: return
+        self.name = "world/pinocchio/target"
+        
+        if isinstance(viz,pin.visualize.MeshcatVisualizer):
+            import meshcat
+            obj = meshcat.geometry.Sphere(radius)
+            material = meshcat.geometry.MeshPhongMaterial()
+            material.color = int(color[0] * 255) * 256**2 + int(color[1] * 255) * 256 + int(color[2] * 255)
+            if float(color[3]) != 1.0:
+                material.transparent = True
+                material.opacity = float(color[3])
+            self.viz.viewer[self.name].set_object(obj, material)
+            
+        elif isinstance(viz,pin.visualize.GepettoVisualizer):
+            self.viz.viewer.gui.addCapsule( self.name, radius,0., color)
+
     def display(self):
-         self.viewer.gui.applyConfiguration( self.name,
-                                               [ self.position[0,0], 0, self.position[1,0],
-                                                 1.,0.,0.0,0. ])
-         self.viewer.gui.refresh()
+        if self.viz is None or self.position is None: return
+        
+        if isinstance(self.viz,pin.visualize.MeshcatVisualizer):
+            T = np.eye(4)
+            T[[0,2],3] = self.position
+            self.viz.viewer[self.name].set_transform(T)
+        elif isinstance(self.viz,pin.visualize.GepettoVisualizer):
+            self.viz.viewer.gui.applyConfiguration( self.name,
+                                                [ self.position[0], 0, self.position[1],
+                                                  1.,0.,0.0,0. ])
+            self.viz.viewer.gui.refresh()
